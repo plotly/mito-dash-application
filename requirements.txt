@@ -1,0 +1,5 @@
+dash-mantine-components
+dash
+dash-pivottable
+pandas
+plotly

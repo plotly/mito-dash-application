@@ -1,0 +1,11 @@
+.pivot-table {
+    max-height: 400px;
+    /* or whatever height you want */
+    overflow-y: scroll;
+}
+
+.pivot-container {
+    max-height: 600px;
+    /* Adjust this value based on your preference */
+    overflow-y: scroll;
+}
