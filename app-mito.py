@@ -1,3 +1,4 @@
+import pandas as pd
 import dash_mantine_components as dmc
 from dash import Dash, html, callback, Input, Output, dcc, dash_table
 from dash.exceptions import PreventUpdate
@@ -128,30 +129,116 @@ def update_graphs(spreadsheet_result):
     final_df = spreadsheet_result.dfs()[-1]
 
     # First, we find the date column. If there isn't one, we can't graph it, so we bail on it
-    date_columns = [col for col in final_df.columns if "date" in col.lower()]
+    date_columns = [col for col in final_df.columns if final_df[col].dtype == "datetime64[ns]"]
+    close_columns = [col for col in final_df.columns if "close" in col.lower()]
+    volume_columns = [col for col in final_df.columns if "volume" in col.lower()]
+    open_columns = [col for col in final_df.columns if "open" in col.lower()]
 
     if len(date_columns) == 0:
-        raise PreventUpdate
+        return dmc.Group(
+            children=[
+                dmc.Text(
+                    "There is not datetime column in your dataset. Use Mito to change any date columns to datetime, and then try again."
+                )
+            ],
+        )
     
-    # Make a time series plot for closing prices, based on the first date column
-    fig1 = px.line(
-        final_df,
-        x=date_columns[0],
-        y=[col for col in final_df.columns if "close" in col.lower()],
-        title="Close Price Comparison",
-    )
+    if len(close_columns) < 2 and len(open_columns) < 2 and len(volume_columns) < 2:
+        return  dmc.Group(
+            children=[
+                dmc.Text(
+                    "There are not enough columns in your dataset to graph. You must have at least two columns named Close, Open, or Volume for comparisons between these stock datasets to be performed"
+                )
+            ],
+        )
 
-    # Make a bar chart for volume, based on the first date column
-    fig2 = px.bar(
-        final_df,
-        x=date_columns[0],
-        y=[col for col in final_df.columns if "volume" in col.lower()],
-        title="Trading Volume Comparison",
-    )
+    date_column = date_columns[0]
+
+    figures = []
+
+    if len(close_columns) >= 2:
+        # Make a time series plot for closing prices, based on the first date column
+        
+        first_column = close_columns[0]
+        second_column = close_columns[1]
+
+        fig1 = px.line(
+            final_df,
+            x=date_column,
+            y=first_column,
+            title="Close Price Comparison",
+        )
+        fig1.add_scatter(
+            x=final_df[date_column],
+            y=final_df[second_column],
+            mode="lines",
+            yaxis="y2",
+        )
+        fig1.update_layout(
+            yaxis=dict(title=first_column),
+            yaxis2=dict(title=second_column, overlaying="y", side="right"),
+        )
+
+        figures.append(fig1)
+
+    if len(open_columns) >= 2:
+        # Make a time series plot for opening prices, based on the first date column
+        
+        first_column = open_columns[0]
+        second_column = open_columns[1]
+
+        fig2 = px.line(
+            final_df,
+            x=date_column,
+            y=first_column,
+            title="Open Price Comparison",
+        )
+
+        fig2.add_scatter(
+            x=final_df[date_column],
+            y=final_df[second_column],
+            mode="lines",
+            yaxis="y2",
+        )
+
+        fig2.update_layout(
+            yaxis=dict(title=first_column),
+            yaxis2=dict(title=second_column, overlaying="y", side="right"),
+        )
+
+        figures.append(fig2)
+
+    if len(volume_columns) >= 2:
+        # Make a bar chart for volume, based on the first date column
+        
+        first_column = volume_columns[0]
+        second_column = volume_columns[1]
+
+        fig3 = px.bar(
+            final_df,
+            x=date_column,
+            y=first_column,
+            title="Volume Comparison",
+        )
+
+        fig3.add_bar(
+            x=final_df[date_column],
+            y=final_df[second_column],
+            yaxis="y2",
+        )
+
+        fig3.update_layout(
+            yaxis=dict(title=first_column),
+            yaxis2=dict(title=second_column, overlaying="y", side="right"),
+        )
+
+        figures.append(fig3)
+
+
     
     return [
         dmc.Group(
-            children=[dcc.Graph(figure=fig1), dcc.Graph(figure=fig2)],
+            children=[dcc.Graph(figure=fig) for fig in figures],
             position="center",
             grow=True,
         ),
