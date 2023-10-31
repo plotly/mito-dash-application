@@ -97,7 +97,7 @@ app.layout = dmc.MantineProvider(
                 "padding": "10px"
             },  # Add some padding around the Center for better spacing
         ),
-        html.Div(id="graph-output"),  # Container for the graphs
+        html.Div(id="graphs-or-error"),  # Container for the graphs, or error message if there is one
         dash_table.DataTable(id="correlation-table"),
     ]
 )
@@ -106,7 +106,7 @@ app.layout = dmc.MantineProvider(
     Output("spreadsheet", "data"),
     Input("upload-data", "contents"),
 )
-def update_output(uploaded_contents):
+def update_spreadsheet(uploaded_contents):
     if uploaded_contents is None:
         raise PreventUpdate
     
@@ -117,13 +117,45 @@ def update_output(uploaded_contents):
     
     return csv_data
 
+
+def get_error_container(error_message):
+    return dmc.Group(
+        children=[
+            dmc.Text(
+                error_message,
+                style={
+                    'color': 'red'
+                }
+            ),
+            dmc.Text(
+                'To see a full tutorial on how to use Mito for Dash, click here: https://docs.mito.ai/tutorials/dash'
+            )
+        ],
+        style={
+            'display': 'flex',
+            'flex-direction': 'column',
+            'justify-content': 'center',
+        }
+    )
+
+
 @mito_callback(
-    Output("graph-output", "children"),
+    Output("graphs-or-error", "children"),
     Input("spreadsheet", "spreadsheet_result"),
 )
 def update_graphs(spreadsheet_result):
     if spreadsheet_result is None or len(spreadsheet_result.dfs()) == 0:
         raise PreventUpdate
+    
+    if len(spreadsheet_result.dfs()) == 0:
+        return get_error_container(
+            "There is no data in your spreadsheet. Use the upload button in the upper left corner to upload to stock datasets to compare."
+        )
+    
+    if len(spreadsheet_result.dfs()) < 3:
+        return get_error_container(
+            "After importing two stock datasets, you need to merge them together using Dataframes > Merge dataframes. If you are merging on date, make sure to convert the date column to datetime first."
+        )
 
     # We graph the final dataset in the spreadsheet
     final_df = spreadsheet_result.dfs()[-1]
@@ -135,107 +167,48 @@ def update_graphs(spreadsheet_result):
     open_columns = [col for col in final_df.columns if "open" in col.lower()]
 
     if len(date_columns) == 0:
-        return dmc.Group(
-            children=[
-                dmc.Text(
-                    "There is not datetime column in your dataset. Use Mito to change any date columns to datetime, and then try again."
-                )
-            ],
+        return get_error_container(
+            "There is not datetime column in your dataset. Use Mito to change any date columns to datetime, and then try again."
         )
     
     if len(close_columns) < 2 and len(open_columns) < 2 and len(volume_columns) < 2:
-        return  dmc.Group(
-            children=[
-                dmc.Text(
-                    "There are not enough columns in your dataset to graph. You must have at least two columns named Close, Open, or Volume for comparisons between these stock datasets to be performed"
-                )
-            ],
-        )
+        return get_error_container("There are not enough columns in your dataset to graph. You must have at least two columns named Close, Open, or Volume for comparisons between these stock datasets to be performed")
 
     date_column = date_columns[0]
 
+    graph_data = {
+        'Close Price': close_columns,
+        'Open Price': open_columns,
+        'Volume': volume_columns,
+    }
+
     figures = []
 
-    if len(close_columns) >= 2:
-        # Make a time series plot for closing prices, based on the first date column
-        
-        first_column = close_columns[0]
-        second_column = close_columns[1]
+    # Build graphs for all of the graph data
+    for graph_title, columns in graph_data.items():
 
-        fig1 = px.line(
+        first_column = columns[0]
+        second_column = columns[1]
+
+        fig = px.line(
             final_df,
             x=date_column,
             y=first_column,
-            title="Close Price Comparison",
+            title=f"{graph_title} Comparison",
         )
-        fig1.add_scatter(
+        fig.add_scatter(
             x=final_df[date_column],
             y=final_df[second_column],
             mode="lines",
             yaxis="y2",
         )
-        fig1.update_layout(
+        fig.update_layout(
             yaxis=dict(title=first_column),
             yaxis2=dict(title=second_column, overlaying="y", side="right"),
         )
 
-        figures.append(fig1)
+        figures.append(fig)
 
-    if len(open_columns) >= 2:
-        # Make a time series plot for opening prices, based on the first date column
-        
-        first_column = open_columns[0]
-        second_column = open_columns[1]
-
-        fig2 = px.line(
-            final_df,
-            x=date_column,
-            y=first_column,
-            title="Open Price Comparison",
-        )
-
-        fig2.add_scatter(
-            x=final_df[date_column],
-            y=final_df[second_column],
-            mode="lines",
-            yaxis="y2",
-        )
-
-        fig2.update_layout(
-            yaxis=dict(title=first_column),
-            yaxis2=dict(title=second_column, overlaying="y", side="right"),
-        )
-
-        figures.append(fig2)
-
-    if len(volume_columns) >= 2:
-        # Make a bar chart for volume, based on the first date column
-        
-        first_column = volume_columns[0]
-        second_column = volume_columns[1]
-
-        fig3 = px.bar(
-            final_df,
-            x=date_column,
-            y=first_column,
-            title="Volume Comparison",
-        )
-
-        fig3.add_bar(
-            x=final_df[date_column],
-            y=final_df[second_column],
-            yaxis="y2",
-        )
-
-        fig3.update_layout(
-            yaxis=dict(title=first_column),
-            yaxis2=dict(title=second_column, overlaying="y", side="right"),
-        )
-
-        figures.append(fig3)
-
-
-    
     return [
         dmc.Group(
             children=[dcc.Graph(figure=fig) for fig in figures],
