@@ -209,11 +209,36 @@ def update_graphs(spreadsheet_result):
 
         figures.append(fig)
 
+    # Build the correlation table
+    correlations = [
+        {"Metric": title, "Pearson Correlation": final_df[columns[0]].corr(final_df[columns[1]])}
+        for title, columns in graph_data.items()
+    ] 
+
     return [
-        dmc.Group(
-            children=[dcc.Graph(figure=fig) for fig in figures],
-            position="center",
-            grow=True,
+        html.Div(
+            children=[
+                dmc.Title("Stock Comparison Graphs"),
+                html.Div(
+                    children=[dcc.Graph(figure=fig) for fig in figures],
+                    style={
+                        "display": "grid",
+                        "grid-template-columns": "1fr 1fr",
+                        "grid-gap": "20px",
+                    }
+                ),
+                dmc.Title("Correlation Table"),
+                dash_table.DataTable(
+                    data=correlations,
+                    style_cell={"textAlign": "center"},
+                ),
+            ],
+            style={
+                "display": "flex",
+                "flex-direction": "column",
+                "justify-content": "center",
+                "text-align": "center",
+            }
         ),
     ]
 
