@@ -35,12 +35,11 @@ def get_side_by_side_graphs(df, date_columns):
     )
 
     # Make a bar chart for volume, based on the first date column
-    fig2 = px.bar(
+    fig2 = px.line(
         df,
         x=date_columns[0],
         y=[col for col in df.columns if "volume" in col.lower()],
         title="Trading Volume Comparison",
-        barmode="group"
     )
 
     # Make the y axis on fig2 a log scale to make it easier to read
