@@ -100,4 +100,3 @@ def get_graph_group(df, date_columns):
             moving_average_graph
         ]
     )
-

@@ -3,3 +3,4 @@ dash
 dash-pivottable
 pandas
 plotly
+mitosheet

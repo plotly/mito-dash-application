@@ -2,13 +2,11 @@ import dash_mantine_components as dmc
 from dash import Dash, html, callback, Input, Output, dcc, dash_table, State
 from dash.exceptions import PreventUpdate
 import base64
-from mitosheet.mito_dash.v1 import Spreadsheet, mito_callback
-
-import io
-import plotly.express as px
+from mitosheet.mito_dash.v1 import Spreadsheet, mito_callback, activate_mito
 from utils import get_correlation_df, get_graph_group
 
 app = Dash(__name__)
+activate_mito(app)
 
 app.layout = dmc.MantineProvider(
     [
@@ -107,7 +105,7 @@ app.layout = dmc.MantineProvider(
         
         html.Div(
             [
-                Spreadsheet(id='spreadsheet', import_folder='data'),
+                Spreadsheet(id={'type': 'spreadsheet', 'id': 'sheet'}, import_folder='data'),
             ],
             style={"height": "80%", "maxWidth": "80%", "margin": "auto", "padding": "10px"},
         ),
@@ -154,9 +152,10 @@ app.layout = dmc.MantineProvider(
 )
 
 @callback(
-    Output("spreadsheet", "data"), 
+    Output({'type': 'spreadsheet', 'id': 'sheet'}, "data"), 
     [Input("upload-data", "contents")], 
-    [State("spreadsheet", "data")])
+    [State({'type': 'spreadsheet', 'id': 'sheet'}, "data")]
+)
 def update_spreadsheet_data(uploaded_contents, data):
     if uploaded_contents is None:
         raise PreventUpdate
@@ -178,7 +177,7 @@ def update_spreadsheet_data(uploaded_contents, data):
 @mito_callback(
     Output("graph-output", "children"),
     Output("correlation-table", "children"),
-    Input("spreadsheet", "spreadsheet_result"),
+    Input({'type': 'spreadsheet', 'id': 'sheet'}, "spreadsheet_result"),
 )
 def update_outputs(spreadsheet_result):
     if spreadsheet_result is None or len(spreadsheet_result.dfs()) == 0:
