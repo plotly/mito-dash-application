@@ -23,7 +23,7 @@ app.layout = dmc.MantineProvider(
                                     "Mito for Dash",
                                     order=1,
                                     style={
-                                        "text-align": "center",
+                                        "text-align": "left",
                                         "margin-bottom": "10px",
                                         "color": "#333",
                                     },
@@ -32,7 +32,7 @@ app.layout = dmc.MantineProvider(
                                     "Portfolio Analysis Example",
                                     order=3,
                                     style={
-                                        "text-align": "center",
+                                        "text-align": "left",
                                         "color": "#555",
                                         "font-weight": "normal",
                                     },
@@ -184,7 +184,6 @@ def update_output(uploaded_contents):
     cols_to_convert = [col for col in merged_df.columns if col != "Date"]
     merged_df[cols_to_convert] = merged_df[cols_to_convert].astype(float)
     merged_df_list = [merged_df.columns.tolist()] + merged_df.values.tolist()
-    print(merged_df.info())
     if not merged_df.empty:
         # Time Series Plot for Closing Prices
         fig1 = px.line(
@@ -266,7 +265,6 @@ def update_output(uploaded_contents):
         }
 
         correlations_df = pd.DataFrame(correlations)
-        print(correlations_df)
 
         layout = [
             dash_table.DataTable(
