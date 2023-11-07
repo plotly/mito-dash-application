@@ -83,7 +83,6 @@ app.layout = dmc.MantineProvider(
             ],
             style={"backgroundColor": "#f6e5ff"},
         ),
-        # Add a markdown component
         html.Div(
             [
                 dcc.Markdown(
@@ -127,7 +126,7 @@ app.layout = dmc.MantineProvider(
     Output("spreadsheet", "data"), 
     [Input("upload-data", "contents")], 
     [State("spreadsheet", "data")])
-def append(uploaded_contents, data, *args):
+def update_spreadsheet_data(uploaded_contents, data):
     if uploaded_contents is None:
         raise PreventUpdate
 
@@ -140,7 +139,6 @@ def append(uploaded_contents, data, *args):
         for contents in uploaded_contents
     ]
 
-    # Append the new data to the existing data
     all_data.extend(csv_data)
     
     return all_data
