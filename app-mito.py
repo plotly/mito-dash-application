@@ -6,6 +6,7 @@ from mitosheet.mito_dash.v1 import Spreadsheet, mito_callback
 
 import io
 import plotly.express as px
+from utils import get_correlation_df, get_graph_group
 
 app = Dash(__name__)
 
@@ -117,8 +118,38 @@ app.layout = dmc.MantineProvider(
                 "padding": "10px"
             },  # Add some padding around the Center for better spacing
         ),
+        html.Div(
+            [
+                html.H3(
+                    "Data Analysis",
+                    style={
+                        "text-align": "center",
+                        "margin-top": "20px",
+                        "color": "#333",
+                        "width": "100%",
+                    },
+                ),
+                html.Div(
+                    id="correlation-table",
+                    style={
+                        "text-align": "center",
+                        "margin-top": "20px",
+                        "color": "#333",
+                        "width": "100%",
+                    }
+                )
+            ],
+            style={
+                "margin-top": "20px",
+                "padding": "10px",
+                "background-color": "#f9f9f9",
+                "box-shadow": "0px 2px 5px rgba(0, 0, 0, 0.1)",
+                "border-radius": "5px",
+                "width": "100%",
+            },  
+        ),
         html.Div(id="graph-output"),  # Container for the graphs
-        dash_table.DataTable(id="correlation-table"),
+        html.Div(id="moving-average-graph-output"),  # Container for the graphs
     ]
 )
 
@@ -146,9 +177,10 @@ def update_spreadsheet_data(uploaded_contents, data):
 
 @mito_callback(
     Output("graph-output", "children"),
+    Output("correlation-table", "children"),
     Input("spreadsheet", "spreadsheet_result"),
 )
-def update_graphs(spreadsheet_result):
+def update_outputs(spreadsheet_result):
     if spreadsheet_result is None or len(spreadsheet_result.dfs()) == 0:
         raise PreventUpdate
 
@@ -160,34 +192,20 @@ def update_graphs(spreadsheet_result):
 
     if len(date_columns) == 0:
         raise PreventUpdate
-    
-    # Make a time series plot for closing prices, based on the first date column
-    fig1 = px.line(
-        final_df,
-        x=date_columns[0],
-        y=[col for col in final_df.columns if "close" in col.lower()],
-        title="Close Price Comparison",
-    )
 
-    # Make a bar chart for volume, based on the first date column
-    fig2 = px.bar(
-        final_df,
-        x=date_columns[0],
-        y=[col for col in final_df.columns if "volume" in col.lower()],
-        title="Trading Volume Comparison",
-        barmode="group"
-    )
+    graph_group = get_graph_group(final_df, date_columns)
 
-    # Make the y axis on fig2 a log scale to make it easier to read
-    fig2.update_yaxes(type="log")
+    correlations_df = get_correlation_df(final_df)
+    correlation_table = None 
     
-    return [
-        dmc.Group(
-            children=[dcc.Graph(figure=fig1), dcc.Graph(figure=fig2)],
-            position="center",
-            grow=True,
-        ),
-    ]
+    if correlations_df is not None:
+        correlation_table = dash_table.DataTable(
+            data=correlations_df.to_dict("records"),
+            style_cell={"textAlign": "center"},
+        )
+        
+    return graph_group, correlation_table
+
 
 if __name__ == "__main__":
     app.run_server(debug=True)
