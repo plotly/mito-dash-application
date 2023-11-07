@@ -1,5 +1,5 @@
 import dash_mantine_components as dmc
-from dash import Dash, html, callback, Input, Output, dcc, dash_table
+from dash import Dash, html, callback, Input, Output, dcc, dash_table, State
 from dash.exceptions import PreventUpdate
 import base64
 from mitosheet.mito_dash.v1 import Spreadsheet, mito_callback
@@ -22,7 +22,7 @@ app.layout = dmc.MantineProvider(
                                     "Mito for Dash",
                                     order=1,
                                     style={
-                                        "text-align": "center",
+                                        "text-align": "left",
                                         "margin-bottom": "10px",
                                         "color": "#333",
                                     },
@@ -31,7 +31,7 @@ app.layout = dmc.MantineProvider(
                                     "Portfolio Analysis Example",
                                     order=3,
                                     style={
-                                        "text-align": "center",
+                                        "text-align": "left",
                                         "color": "#555",
                                         "font-weight": "normal",
                                     },
@@ -47,7 +47,7 @@ app.layout = dmc.MantineProvider(
                                         html.I(
                                             className="fa fa-upload"
                                         ),  # Using Font Awesome icon
-                                        html.Span(" Upload files"),
+                                        html.Span("Upload files"),
                                     ],
                                     style={
                                         "display": "inline-block",
@@ -83,9 +83,31 @@ app.layout = dmc.MantineProvider(
             ],
             style={"backgroundColor": "#f6e5ff"},
         ),
+        # Add a markdown component
         html.Div(
             [
-                Spreadsheet(id='spreadsheet'),
+                dcc.Markdown(
+                    """
+                    ### Using this app
+                    1.  Use the Upload Files button in the top right to import both the Tesla Stock and S&P500 data.
+                    2.  Use Mito to convert the Date column in both sheets to a datetime, using the Dtype dropdown in the Mito toolbar.
+                    3.  Click Dataframes > Merge dataframes to join the data together.
+                    4.  Take a look at the graphs generated below.
+                    5.  Explore the data in the spreadsheet (maybe applying a filter or two) and see how the graphs change.
+                    """
+                ),  
+            ],
+            style={
+                "padding": "10px",
+                "margin": "auto",
+                "maxWidth": "80%",
+                "font-size": "1.2em",
+            }
+        ),
+        
+        html.Div(
+            [
+                Spreadsheet(id='spreadsheet', import_folder='data'),
             ],
             style={"height": "80%", "maxWidth": "80%", "margin": "auto", "padding": "10px"},
         ),
@@ -102,19 +124,27 @@ app.layout = dmc.MantineProvider(
 )
 
 @callback(
-    Output("spreadsheet", "data"),
-    Input("upload-data", "contents"),
-)
-def update_output(uploaded_contents):
+    Output("spreadsheet", "data"), 
+    [Input("upload-data", "contents")], 
+    [State("spreadsheet", "data")])
+def append(uploaded_contents, data, *args):
     if uploaded_contents is None:
         raise PreventUpdate
+
+    # If the user has already uploaded a file, pass both the original 
+    # data and new data to the spreadsheet component 
+    all_data = [data] if data is not None else []
     
     csv_data = [
         base64.b64decode(contents.split(",")[1]).decode("utf-8")
         for contents in uploaded_contents
     ]
+
+    # Append the new data to the existing data
+    all_data.extend(csv_data)
     
-    return csv_data
+    return all_data
+    
 
 @mito_callback(
     Output("graph-output", "children"),
@@ -147,7 +177,11 @@ def update_graphs(spreadsheet_result):
         x=date_columns[0],
         y=[col for col in final_df.columns if "volume" in col.lower()],
         title="Trading Volume Comparison",
+        barmode="group"
     )
+
+    # Make the y axis on fig2 a log scale to make it easier to read
+    fig2.update_yaxes(type="log")
     
     return [
         dmc.Group(
