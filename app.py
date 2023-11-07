@@ -84,6 +84,25 @@ app.layout = dmc.MantineProvider(
             ],
             style={"backgroundColor": "#f6e5ff"},
         ),
+        html.Div(
+            [
+                dcc.Markdown(
+                    """
+                    ### Using this app
+                    1.  Click the Upload Files button in the upper left corner.
+                    2.  Upload the Tesla Stock and S&P500 data linked above from your Downloads folder.
+                    3.  The application will automatically combine these two datasets, build the graphs, and output a correlation table comparing them.
+                    """
+                ),  
+            ],
+            style={
+                "padding": "10px",
+                "margin": "auto",
+                "maxWidth": "80%",
+                "font-size": "1.2em",
+            }
+        ),
+
         dmc.Center(
             [
                 html.Div(
