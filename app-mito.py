@@ -1,9 +1,12 @@
+import pandas as pd
 import dash_mantine_components as dmc
 from dash import Dash, html, callback, Input, Output, dcc, dash_table, State
 from dash.exceptions import PreventUpdate
 import base64
 from mitosheet.mito_dash.v1 import Spreadsheet, mito_callback, activate_mito
-from utils import get_correlation_df, get_graph_group
+import plotly.express as px
+
+from utils import get_correlations, get_date_and_matching_columns, get_graphs
 
 app = Dash(__name__)
 activate_mito(app)
@@ -87,9 +90,9 @@ app.layout = dmc.MantineProvider(
                 dcc.Markdown(
                     """
                     ### Using this app
-                    1.  Use the Upload Files button in the top right to import both the Tesla Stock and S&P500 data.
-                    2.  Use Mito to convert the Date column in both sheets to a datetime, using the Dtype dropdown in the Mito toolbar.
-                    3.  Click Dataframes > Merge dataframes to join the data together.
+                    1.  Use the **Upload Files** button in the top right to import both the Tesla Stock and S&P500 data.
+                    2.  Use Mito to convert the **Date columns** in both sheets to a datetime, using the **Dtype dropdown** in the Mito toolbar.
+                    3.  Click **Dataframes > Merge dataframes** to join the data together.
                     4.  Take a look at the graphs generated below.
                     5.  Explore the data in the spreadsheet (maybe applying a filter or two) and see how the graphs change.
                     """
@@ -146,33 +149,24 @@ app.layout = dmc.MantineProvider(
                 "width": "100%",
             },  
         ),
-        html.Div(id="graph-output"),  # Container for the graphs
-        html.Div(id="moving-average-graph-output"),  # Container for the graphs
+        html.Div(id="graph-output"),
     ]
 )
 
 @callback(
     Output({'type': 'spreadsheet', 'id': 'sheet'}, "data"), 
     [Input("upload-data", "contents")], 
-    [State({'type': 'spreadsheet', 'id': 'sheet'}, "data")]
 )
-def update_spreadsheet_data(uploaded_contents, data):
+def update_spreadsheet_data(uploaded_contents):
     if uploaded_contents is None:
         raise PreventUpdate
 
-    # If the user has already uploaded a file, pass both the original 
-    # data and new data to the spreadsheet component 
-    all_data = [data] if data is not None else []
-    
     csv_data = [
         base64.b64decode(contents.split(",")[1]).decode("utf-8")
         for contents in uploaded_contents
     ]
-
-    all_data.extend(csv_data)
     
-    return all_data
-    
+    return csv_data
 
 @mito_callback(
     Output("graph-output", "children"),
@@ -182,29 +176,46 @@ def update_spreadsheet_data(uploaded_contents, data):
 def update_outputs(spreadsheet_result):
     if spreadsheet_result is None or len(spreadsheet_result.dfs()) == 0:
         raise PreventUpdate
+    
+    if len(spreadsheet_result.dfs()) == 0:
+        raise PreventUpdate
+    
+    if len(spreadsheet_result.dfs()) < 3:
+        raise PreventUpdate
+
 
     # We graph the final dataset in the spreadsheet
     final_df = spreadsheet_result.dfs()[-1]
 
-    # First, we find the date column. If there isn't one, we can't graph it, so we bail on it
-    date_columns = [col for col in final_df.columns if "date" in col.lower()]
+    # Build some figures to display
+    date_column, matching_columns = get_date_and_matching_columns(final_df)
+    figures = get_graphs(final_df, date_column, matching_columns)
 
-    if len(date_columns) == 0:
-        raise PreventUpdate
+    # Build the correlation table
+    correlations = get_correlations(final_df, matching_columns)
 
-    graph_group = get_graph_group(final_df, date_columns)
-
-    correlations_df = get_correlation_df(final_df)
-    correlation_table = None 
-    
-    if correlations_df is not None:
-        correlation_table = dash_table.DataTable(
-            data=correlations_df.to_dict("records"),
-            style_cell={"textAlign": "center"},
-        )
-        
-    return graph_group, correlation_table
-
+    return html.Div(
+        children=[
+            dmc.Title("Stock Comparison Graphs"),
+            html.Div(
+                children=[dcc.Graph(figure=fig) for fig in figures],
+                style={
+                    "display": "grid",
+                    "grid-template-columns": "1fr 1fr",
+                    "grid-gap": "20px",
+                }
+            ),
+        ],
+        style={
+            "display": "flex",
+            "flex-direction": "column",
+            "justify-content": "center",
+            "text-align": "center",
+        }
+    ), dash_table.DataTable(
+        data=correlations,
+        style_cell={"textAlign": "center"},
+    ),
 
 if __name__ == "__main__":
     app.run_server(debug=True)

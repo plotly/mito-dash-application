@@ -1,101 +1,109 @@
-import pandas as pd
 import plotly.express as px
 from dash import dcc, html
-import dash_mantine_components as dmc
+from dash.exceptions import PreventUpdate
 
 
-def get_correlation_df(df):
+def get_date_and_matching_columns(df):
+    """
+    Returns the date column, and a dictonary of columns that match the following criteria:
+    - Close price column
+    - Open price column
+    - Volume column 
+    """
+    # First, we find the date column. If there isn't one, we can't graph it, so we bail on it
+    date_columns = [col for col in df.columns if df[col].dtype == "datetime64[ns]"]
+    close_columns = [col for col in df.columns if "close" in col.lower()]
+    volume_columns = [col for col in df.columns if "volume" in col.lower()]
+    open_columns = [col for col in df.columns if "open" in col.lower()]
 
-    columns = list(df.columns)
+    if len(date_columns) == 0:
+        raise PreventUpdate
+    
+    if len(close_columns) < 2 and len(open_columns) < 2 and len(volume_columns) < 2:
+        raise PreventUpdate
+    
+    date_column = date_columns[0] if len(date_columns) > 0 else None
 
-    # Check if all required columns exist before creating matrix
-    if not all([col in columns for col in [ "open_sp", "close_sp", "volume_sp", "open_tsla", "close_tsla", "volume_tsla"]]):
-        return None
-
-    correlations =  {
-        "Metric": ["Open", "Close", "Volume"],
-        "Pearson Correlation": [
-            df["open_sp"].corr(df["open_tsla"]),
-            df["close_sp"].corr(df["close_tsla"]),
-            df["volume_sp"].corr(df["volume_tsla"]),
-        ]
+    matching_columns = {
+        'Close Price': close_columns if len(close_columns) > 1 else None,
+        'Open Price': open_columns if len(open_columns) > 1 else None,
+        'Volume': volume_columns if len(volume_columns) > 1 else None,
     }
 
-    correlations_df = pd.DataFrame(correlations)
-    return correlations_df
+    return date_column, matching_columns
 
 
-def get_side_by_side_graphs(df, date_columns):
-    # Make a time series plot for closing prices, based on the first date column
-    fig1 = px.line(
-        df,
-        x=date_columns[0],
-        y=[col for col in df.columns if "close" in col.lower()],
-        title="Close Price Comparison",
-    )
+def get_graphs(df, date_column, matching_columns):
 
-    # Make a bar chart for volume, based on the first date column
-    fig2 = px.line(
-        df,
-        x=date_columns[0],
-        y=[col for col in df.columns if "volume" in col.lower()],
-        title="Trading Volume Comparison",
-    )
+    if date_column is None:
+        raise PreventUpdate
+    
+    if len(matching_columns['Close Price']) < 2 and len(matching_columns['Open Price']) < 2 and len(matching_columns['Volume']) < 2:
+        raise PreventUpdate
 
-    # Make the y axis on fig2 a log scale to make it easier to read
-    fig2.update_yaxes(type="log")
+    figures = []
 
-    graph_group = dmc.Group(
-        children=[dcc.Graph(figure=fig1), dcc.Graph(figure=fig2)],
-        position="center",
-        grow=True,
-    )
+    # Build all the standard comparison graphs
+    for graph_title, columns in matching_columns.items():
 
-    return graph_group
+        first_column = columns[0]
+        second_column = columns[1]
 
-def get_moving_average_graph(df):
-    df = df.copy()
-    columns = list(df.columns)
+        fig = px.line(
+            df,
+            x=date_column,
+            y=first_column,
+            title=f"{graph_title} Comparison",
+        )
+        fig.add_scatter(
+            x=df[date_column],
+            y=df[second_column],
+            mode="lines",
+            yaxis="y2",
+            name=f"{second_column}",
+        )
+        fig.update_layout(
+            yaxis=dict(title=first_column),
+            yaxis2=dict(title=second_column, overlaying="y", side="right"),
+        )
 
-    # Check if all required columns exist before creating graph
-    if not all([col in columns for col in [ "close_sp", "close_tsla", "Date"]]):
-        return None
+        figures.append(fig)
 
-    df["S&P_MA30"] = df["close_sp"].rolling(window=30).mean()
-    df["TSLA_MA30"] = df["close_tsla"].rolling(window=30).mean()
-    fig3 = px.line(
-        df,
-        x="Date",
-        y="S&P_MA30",
-        labels={"S&P_MA30": "S&P 30-Day MA"},
-        title="30-Day Moving Average Comparison",
-    )
+    # Build the rolling average plots
+    for graph_title, columns in matching_columns.items():
 
-    fig3.add_scatter(
-        x=df["Date"],
-        y=df["TSLA_MA30"],
-        mode="lines",
-        name="TSLA 30-Day MA",
-        yaxis="y2",
-    )
+        first_column = columns[0]
+        second_column = columns[1]
 
-    fig3.update_layout(
-        yaxis=dict(title="S&P 30-Day Moving Average"),
-        yaxis2=dict(
-            title="TSLA 30-Day Moving Average", overlaying="y", side="right"
-        ),
-    )
+        df[f"{first_column}_MA30"] = df[first_column].rolling(window=30).mean()
+        df[f"{second_column}_MA30"] = df[second_column].rolling(window=30).mean()
+        fig = px.line(
+            df,
+            x=date_column,
+            y=f"{first_column}_MA30",
+            title=f"{graph_title} 30-Day Moving Average Comparison",
+        )
+        fig.add_scatter(
+            x=df[date_column],
+            y=df[f"{second_column}_MA30"],
+            mode="lines",
+            name=f"{second_column} 30-Day MA",
+            yaxis="y2",
+        )
 
-    return dcc.Graph(figure=fig3)
+        fig.update_layout(
+            yaxis=dict(title=f"{first_column} 30-Day Moving Average"),
+            yaxis2=dict(
+                title=f"{second_column} 30-Day Moving Average", overlaying="y", side="right"
+            ),
+        )
 
+        figures.append(fig)
 
-def get_graph_group(df, date_columns): 
-    side_by_side_graphs = get_side_by_side_graphs(df, date_columns)
-    moving_average_graph = get_moving_average_graph(df)
+    return figures
 
-    return html.Div(
-        [
-            side_by_side_graphs,
-            moving_average_graph
-        ]
-    )
+def get_correlations(df, matching_columns):
+    return [
+        {"Metric": title, "Pearson Correlation": df[columns[0]].corr(df[columns[1]])}
+        for title, columns in matching_columns.items()
+    ]
