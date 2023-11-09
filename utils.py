@@ -35,6 +35,8 @@ def get_date_and_matching_columns(df):
 
 def get_graphs(df, date_column, matching_columns):
 
+    df = df.copy()
+
     if date_column is None:
         raise PreventUpdate
     
