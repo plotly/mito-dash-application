@@ -1,13 +1,15 @@
+import pandas as pd
 import dash_mantine_components as dmc
-from dash import Dash, html, callback, Input, Output, dcc, dash_table
+from dash import Dash, html, callback, Input, Output, dcc, dash_table, State
 from dash.exceptions import PreventUpdate
 import base64
-from mitosheet.mito_dash.v1 import Spreadsheet, mito_callback
-
-import io
+from mitosheet.mito_dash.v1 import Spreadsheet, mito_callback, activate_mito
 import plotly.express as px
 
+from utils import get_correlations, get_date_and_matching_columns, get_graphs
+
 app = Dash(__name__)
+activate_mito(app)
 
 app.layout = dmc.MantineProvider(
     [
@@ -22,7 +24,7 @@ app.layout = dmc.MantineProvider(
                                     "Mito for Dash",
                                     order=1,
                                     style={
-                                        "text-align": "center",
+                                        "text-align": "left",
                                         "margin-bottom": "10px",
                                         "color": "#333",
                                     },
@@ -31,7 +33,7 @@ app.layout = dmc.MantineProvider(
                                     "Portfolio Analysis Example",
                                     order=3,
                                     style={
-                                        "text-align": "center",
+                                        "text-align": "left",
                                         "color": "#555",
                                         "font-weight": "normal",
                                     },
@@ -47,7 +49,7 @@ app.layout = dmc.MantineProvider(
                                         html.I(
                                             className="fa fa-upload"
                                         ),  # Using Font Awesome icon
-                                        html.Span(" Upload files"),
+                                        html.Span("Upload files"),
                                     ],
                                     style={
                                         "display": "inline-block",
@@ -85,7 +87,28 @@ app.layout = dmc.MantineProvider(
         ),
         html.Div(
             [
-                Spreadsheet(id='spreadsheet'),
+                dcc.Markdown(
+                    """
+                    ### Using this app
+                    1.  Use the **Upload Files** button in the top right to import both the Tesla Stock and S&P500 data.
+                    2.  Use Mito to convert the **Date columns** in both sheets to a datetime, using the **Dtype dropdown** in the Mito toolbar.
+                    3.  Click **Dataframes > Merge dataframes** to join the data together.
+                    4.  Take a look at the graphs generated below.
+                    5.  Explore the data in the spreadsheet (maybe applying a filter or two) and see how the graphs change.
+                    """
+                ),  
+            ],
+            style={
+                "padding": "10px",
+                "margin": "auto",
+                "maxWidth": "80%",
+                "font-size": "1.2em",
+            }
+        ),
+        
+        html.Div(
+            [
+                Spreadsheet(id={'type': 'spreadsheet', 'id': 'sheet'}, import_folder='data'),
             ],
             style={"height": "80%", "maxWidth": "80%", "margin": "auto", "padding": "10px"},
         ),
@@ -96,19 +119,48 @@ app.layout = dmc.MantineProvider(
                 "padding": "10px"
             },  # Add some padding around the Center for better spacing
         ),
-        html.Div(id="graph-output"),  # Container for the graphs
-        dash_table.DataTable(id="correlation-table"),
+        html.Div(
+            [
+                html.H3(
+                    "Data Analysis",
+                    style={
+                        "text-align": "center",
+                        "margin-top": "20px",
+                        "color": "#333",
+                        "width": "100%",
+                    },
+                ),
+                html.Div(
+                    id="correlation-table",
+                    style={
+                        "text-align": "center",
+                        "margin-top": "20px",
+                        "color": "#333",
+                        "width": "100%",
+                    }
+                )
+            ],
+            style={
+                "margin-top": "20px",
+                "padding": "10px",
+                "background-color": "#f9f9f9",
+                "box-shadow": "0px 2px 5px rgba(0, 0, 0, 0.1)",
+                "border-radius": "5px",
+                "width": "100%",
+            },  
+        ),
+        html.Div(id="graph-output"),
     ]
 )
 
 @callback(
-    Output("spreadsheet", "data"),
-    Input("upload-data", "contents"),
+    Output({'type': 'spreadsheet', 'id': 'sheet'}, "data"), 
+    [Input("upload-data", "contents")], 
 )
-def update_output(uploaded_contents):
+def update_spreadsheet_data(uploaded_contents):
     if uploaded_contents is None:
         raise PreventUpdate
-    
+
     csv_data = [
         base64.b64decode(contents.split(",")[1]).decode("utf-8")
         for contents in uploaded_contents
@@ -118,44 +170,52 @@ def update_output(uploaded_contents):
 
 @mito_callback(
     Output("graph-output", "children"),
-    Input("spreadsheet", "spreadsheet_result"),
+    Output("correlation-table", "children"),
+    Input({'type': 'spreadsheet', 'id': 'sheet'}, "spreadsheet_result"),
 )
-def update_graphs(spreadsheet_result):
+def update_outputs(spreadsheet_result):
     if spreadsheet_result is None or len(spreadsheet_result.dfs()) == 0:
         raise PreventUpdate
+    
+    if len(spreadsheet_result.dfs()) == 0:
+        raise PreventUpdate
+    
+    if len(spreadsheet_result.dfs()) < 3:
+        raise PreventUpdate
+
 
     # We graph the final dataset in the spreadsheet
     final_df = spreadsheet_result.dfs()[-1]
 
-    # First, we find the date column. If there isn't one, we can't graph it, so we bail on it
-    date_columns = [col for col in final_df.columns if "date" in col.lower()]
+    # Build some figures to display
+    date_column, matching_columns = get_date_and_matching_columns(final_df)
+    figures = get_graphs(final_df, date_column, matching_columns)
 
-    if len(date_columns) == 0:
-        raise PreventUpdate
-    
-    # Make a time series plot for closing prices, based on the first date column
-    fig1 = px.line(
-        final_df,
-        x=date_columns[0],
-        y=[col for col in final_df.columns if "close" in col.lower()],
-        title="Close Price Comparison",
-    )
+    # Build the correlation table
+    correlations = get_correlations(final_df, matching_columns)
 
-    # Make a bar chart for volume, based on the first date column
-    fig2 = px.bar(
-        final_df,
-        x=date_columns[0],
-        y=[col for col in final_df.columns if "volume" in col.lower()],
-        title="Trading Volume Comparison",
-    )
-    
-    return [
-        dmc.Group(
-            children=[dcc.Graph(figure=fig1), dcc.Graph(figure=fig2)],
-            position="center",
-            grow=True,
-        ),
-    ]
+    return html.Div(
+        children=[
+            dmc.Title("Stock Comparison Graphs"),
+            html.Div(
+                children=[dcc.Graph(figure=fig) for fig in figures],
+                style={
+                    "display": "grid",
+                    "grid-template-columns": "1fr 1fr",
+                    "grid-gap": "20px",
+                }
+            ),
+        ],
+        style={
+            "display": "flex",
+            "flex-direction": "column",
+            "justify-content": "center",
+            "text-align": "center",
+        }
+    ), dash_table.DataTable(
+        data=correlations,
+        style_cell={"textAlign": "center"},
+    ),
 
 if __name__ == "__main__":
     app.run_server(debug=True)
