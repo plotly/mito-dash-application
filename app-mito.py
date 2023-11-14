@@ -30,7 +30,7 @@ app.layout = dmc.MantineProvider(
                                     },
                                 ),
                                 dmc.Title(
-                                    "Portfolio Analysis Example",
+                                    "Portfolio Analysis Example - with Mito",
                                     order=3,
                                     style={
                                         "text-align": "left",
@@ -96,21 +96,27 @@ app.layout = dmc.MantineProvider(
                     4.  Take a look at the graphs generated below.
                     5.  Explore the data in the spreadsheet (maybe applying a filter or two) and see how the graphs change.
                     """
-                ),  
+                ),
             ],
             style={
                 "padding": "10px",
                 "margin": "auto",
                 "maxWidth": "80%",
                 "font-size": "1.2em",
-            }
+            },
         ),
-        
         html.Div(
             [
-                Spreadsheet(id={'type': 'spreadsheet', 'id': 'sheet'}, import_folder='data'),
+                Spreadsheet(
+                    id={"type": "spreadsheet", "id": "sheet"}, import_folder="data"
+                ),
             ],
-            style={"height": "80%", "maxWidth": "80%", "margin": "auto", "padding": "10px"},
+            style={
+                "height": "80%",
+                "maxWidth": "80%",
+                "margin": "auto",
+                "padding": "10px",
+            },
         ),
         dmc.Center(
             id="data_analysis_title",
@@ -137,8 +143,8 @@ app.layout = dmc.MantineProvider(
                         "margin-top": "20px",
                         "color": "#333",
                         "width": "100%",
-                    }
-                )
+                    },
+                ),
             ],
             style={
                 "margin-top": "20px",
@@ -147,15 +153,16 @@ app.layout = dmc.MantineProvider(
                 "box-shadow": "0px 2px 5px rgba(0, 0, 0, 0.1)",
                 "border-radius": "5px",
                 "width": "100%",
-            },  
+            },
         ),
         html.Div(id="graph-output"),
     ]
 )
 
+
 @callback(
-    Output({'type': 'spreadsheet', 'id': 'sheet'}, "data"), 
-    [Input("upload-data", "contents")], 
+    Output({"type": "spreadsheet", "id": "sheet"}, "data"),
+    [Input("upload-data", "contents")],
 )
 def update_spreadsheet_data(uploaded_contents):
     if uploaded_contents is None:
@@ -165,24 +172,24 @@ def update_spreadsheet_data(uploaded_contents):
         base64.b64decode(contents.split(",")[1]).decode("utf-8")
         for contents in uploaded_contents
     ]
-    
+
     return csv_data
+
 
 @mito_callback(
     Output("graph-output", "children"),
     Output("correlation-table", "children"),
-    Input({'type': 'spreadsheet', 'id': 'sheet'}, "spreadsheet_result"),
+    Input({"type": "spreadsheet", "id": "sheet"}, "spreadsheet_result"),
 )
 def update_outputs(spreadsheet_result):
     if spreadsheet_result is None or len(spreadsheet_result.dfs()) == 0:
         raise PreventUpdate
-    
+
     if len(spreadsheet_result.dfs()) == 0:
         raise PreventUpdate
-    
+
     if len(spreadsheet_result.dfs()) < 3:
         raise PreventUpdate
-
 
     # We graph the final dataset in the spreadsheet
     final_df = spreadsheet_result.dfs()[-1]
@@ -194,28 +201,32 @@ def update_outputs(spreadsheet_result):
     # Build the correlation table
     correlations = get_correlations(final_df, matching_columns)
 
-    return html.Div(
-        children=[
-            dmc.Title("Stock Comparison Graphs"),
-            html.Div(
-                children=[dcc.Graph(figure=fig) for fig in figures],
-                style={
-                    "display": "grid",
-                    "grid-template-columns": "1fr 1fr",
-                    "grid-gap": "20px",
-                }
-            ),
-        ],
-        style={
-            "display": "flex",
-            "flex-direction": "column",
-            "justify-content": "center",
-            "text-align": "center",
-        }
-    ), dash_table.DataTable(
-        data=correlations,
-        style_cell={"textAlign": "center"},
-    ),
+    return (
+        html.Div(
+            children=[
+                dmc.Title("Stock Comparison Graphs"),
+                html.Div(
+                    children=[dcc.Graph(figure=fig) for fig in figures],
+                    style={
+                        "display": "grid",
+                        "grid-template-columns": "1fr 1fr",
+                        "grid-gap": "20px",
+                    },
+                ),
+            ],
+            style={
+                "display": "flex",
+                "flex-direction": "column",
+                "justify-content": "center",
+                "text-align": "center",
+            },
+        ),
+        dash_table.DataTable(
+            data=correlations,
+            style_cell={"textAlign": "center"},
+        ),
+    )
+
 
 if __name__ == "__main__":
     app.run_server(debug=True)

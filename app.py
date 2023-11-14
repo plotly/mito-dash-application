@@ -29,7 +29,7 @@ app.layout = dmc.MantineProvider(
                                     },
                                 ),
                                 dmc.Title(
-                                    "Portfolio Analysis Example",
+                                    "Portfolio Analysis Example - without Mito",
                                     order=3,
                                     style={
                                         "text-align": "left",
@@ -89,20 +89,19 @@ app.layout = dmc.MantineProvider(
                 dcc.Markdown(
                     """
                     ### Using this app
-                    1.  Click the Upload Files button in the upper left corner.
+                    1.  Click the "Upload Files" button in the upper right corner of this app.
                     2.  Upload the Tesla Stock and S&P500 data linked above from your Downloads folder.
-                    3.  The application will automatically combine these two datasets, build the graphs, and output a correlation table comparing them.
+                    3.  When uploaded, scroll below to see automatically generated graphs and a correlation table. **Note** - _this will only work for these two datasets_.
                     """
-                ),  
+                ),
             ],
             style={
                 "padding": "10px",
                 "margin": "auto",
                 "maxWidth": "80%",
                 "font-size": "1.2em",
-            }
+            },
         ),
-
         dmc.Center(
             [
                 html.Div(
@@ -203,6 +202,7 @@ def update_output(uploaded_contents):
     cols_to_convert = [col for col in merged_df.columns if col != "Date"]
     merged_df[cols_to_convert] = merged_df[cols_to_convert].astype(float)
     merged_df_list = [merged_df.columns.tolist()] + merged_df.values.tolist()
+
     if not merged_df.empty:
         # Time Series Plot for Closing Prices
         fig1 = px.line(
