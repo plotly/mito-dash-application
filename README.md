@@ -1,5 +1,12 @@
 # Dash + Mito Medium Article App
 
+<div align="center">
+  <a href="https://dash.plotly.com/project-maintenance">
+    <img src="https://dash.plotly.com/assets/images/maintained-by-plotly.png" width="400px" alt="Maintained by Plotly">
+  </a>
+</div>
+
+
 Imagine you're a data scientist at a hedge fund. Your organization asked you to help the traders **track and visualize Tesla's stock over time in comparison to the S&P 500**.
 You are given two datasets --one that shows Tesla stock activity over time, and one that shows S&P Market activity over time.
 
